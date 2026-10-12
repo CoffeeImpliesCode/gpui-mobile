@@ -79,12 +79,6 @@ core-text           = "=21.0.0"
 uuid                = { version = "1", features = ["v4", "v5"] }
 block2              = "0.6"
 
-# libc 0.2.190 dropped the iOS `_dyld_*` symbol declarations that `backtrace`
-# calls in `symbolize/gimli/libs_macos.rs`, which breaks `cargo check` for the
-# apple-ios targets (E0425: cannot find `_dyld_image_header` in `libc`). Pin to
-# the last good release until a fixed libc (>0.2.190) ships.
-libc = "=0.2.189"
-
 # wgpu renderer (Metal backend on iOS/Android)
 gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.8", features = ["font-kit"] }
 wgpu = "29.0.4"
@@ -101,7 +95,15 @@ font-kit = { package = "zed-font-kit", version = "0.14.1-zed" }
 [target.'cfg(target_os = "android")'.dependencies]
 # JNI / NDK bindings
 jni         = "0.22"
-libc        = "0.2"
+# libc 0.2.190 is the first release with the correct aarch64 Android
+# `ucontext_t` layout (padding after `uc_sigmask`). Older releases place
+# `uc_mcontext` 120 bytes too early, so signal handlers that read the faulting
+# PC (for example Wasmtime's trap handler) misread it and the process dies with
+# SIGILL. Cargo resolves one libc for every target, so an older pin anywhere in
+# this manifest also reaches Android. Upstream pinned `=0.2.189` for an iOS
+# `backtrace` build break (missing `_dyld_*` declarations); this fork does not
+# build for iOS and takes 0.2.190.
+libc        = "0.2.190"
 # Keep `ndk` on the baseline `nativewindow` feature set. Enabling
 # `api-level-31` links API 31 symbols directly, so the shared library
 # fails to `dlopen` on older Android versions before our own code runs.
