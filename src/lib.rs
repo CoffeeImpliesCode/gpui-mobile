@@ -82,6 +82,8 @@ pub mod momentum;
 pub mod packages;
 pub mod platform_view;
 pub mod target_platform;
+#[cfg(any(target_os = "ios", target_os = "android", test))]
+pub(crate) mod touch_input;
 
 // ── System chrome (status bar / navigation bar) styling ──────────────────────
 

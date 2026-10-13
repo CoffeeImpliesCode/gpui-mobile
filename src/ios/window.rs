@@ -12,7 +12,7 @@
 
 use super::events::*;
 use super::IosDisplay;
-use crate::fling_guard::FlingGuard;
+use crate::touch_input::TouchInput;
 use crate::frame_demand::FrameDemand;
 
 use gpui::{
@@ -592,7 +592,7 @@ pub(crate) struct IosWindow {
     /// Stable, non-reused GPUI IDs for UIKit's live touch objects.
     active_touches: RefCell<HashMap<usize, gpui::TouchId>>,
     next_touch_id: Cell<u64>,
-    fling_guard: RefCell<FlingGuard>,
+    touch_input: RefCell<TouchInput>,
     /// The wgpu renderer (Metal backend on iOS).
     /// Wrapped in a `Mutex<Option<…>>` so that `draw()` (called from the
     /// `request_frame` callback) can acquire a mutable reference without
@@ -725,7 +725,7 @@ impl IosWindow {
                 modifiers: Cell::new(Modifiers::default()),
                 active_touches: RefCell::new(HashMap::new()),
                 next_touch_id: Cell::new(0),
-                fling_guard: RefCell::new(FlingGuard::new()),
+                touch_input: RefCell::new(TouchInput::new()),
                 renderer: Mutex::new(None),
             };
 
@@ -905,9 +905,9 @@ impl IosWindow {
         id
     }
 
-    /// Forward raw contacts to GPUI's gesture recognizer. It owns tap synthesis,
-    /// long press, claimed control drags, pan scrolling, and scroll momentum;
-    /// [`FlingGuard`] keeps a contact that stops a fling from inheriting its axis.
+    /// Forward single contacts to GPUI for taps, claimed drags and scrolling.
+    /// The router cancels that stream before emitting two-contact pinches and
+    /// disarms stale scroll momentum before a new single contact.
     pub fn handle_touch(&self, touch: *mut AnyObject, _event: *mut AnyObject) {
         let position = touch_location_in_view(touch, self.view);
         let phase = match touch_phase(touch) {
@@ -944,11 +944,11 @@ impl IosWindow {
                 predicted_position: None,
                 force: None,
             };
-            self.fling_guard.borrow_mut().relay(
+            self.touch_input.borrow_mut().relay(
                 event,
                 || self.next_touch_id(),
                 |event| {
-                    callback(PlatformInput::Touch(event));
+                    callback(event);
                 },
             );
         }

@@ -43,6 +43,32 @@ native `InputConnection`. Include `GpuiInputActivity.java` and retain the usual
 example manifest. The picker imports documents into app cache before returning
 filesystem paths; it does not require broad storage permissions.
 
+### Touch gestures
+
+Single contacts are forwarded as raw GPUI touches. A custom canvas can register a
+`TouchDragEvent` with `window.on_mouse_event` during paint and call
+`window.prevent_default()` on `Started` to claim it. Claimed drags carry the fixed
+`start_position` and absolute current `position` in logical window pixels; they
+are not axis-locked and do not generate taps or scroll momentum. Unclaimed
+contacts retain GPUI's normal taps, long presses and axis-locked pan scrolling.
+
+A second contact cancels the first raw touch, then emits `PinchEvent`s for
+`on_pinch`. `position` is the current two-contact midpoint in logical window
+pixels. `Started`, `Ended` and `Cancelled` have zero `delta`. Each `Moved` delta
+is the new absolute scale minus the previous absolute scale, where absolute
+scale is the current contact span divided by the span at pinch start. This
+matches GPUI 0.3.8 on Linux: accumulate deltas from scale 1, then divide the new
+scale by the previous scale to obtain each incremental magnification. Do not
+multiply `1 + delta` across events. Coincident starting contacts establish their
+baseline on the first nonzero span. A release with a new position emits its last
+`Moved` before `Ended`.
+
+Either contact can end or cancel the pinch. Additional contacts are ignored,
+and all remaining contacts must lift before another single-contact drag or
+pinch begins. This prevents a pinch release from becoming a tap or a stale pan.
+Pinch handlers use GPUI's normal bubble-phase hit testing at the midpoint.
+
+
 ## Quick Start
 
 ### Prerequisites

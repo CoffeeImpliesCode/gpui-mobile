@@ -1690,9 +1690,9 @@ impl PlatformWindow for AndroidPlatformWindow {
         *self.ime_input_callback.lock() = send_callback;
         let input_cb = Arc::clone(&self.ime_input_callback);
 
-        // Preserve raw contacts so GPUI can arbitrate long presses, claimed
-        // control drags and ordinary pans, including hover suppression and inertia.
-        // `FlingGuard` keeps a contact that stops a fling from inheriting its axis.
+        // Preserve single contacts for GPUI's claimed drags and ordinary pans.
+        // The router cancels that stream before emitting a two-contact pinch;
+        // its fling guard still disarms stale scroll momentum.
         {
             let cb = Arc::clone(&input_cb);
             let window = Arc::downgrade(&self.window);
@@ -1703,7 +1703,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                 id
             };
             let mut active_touches = HashMap::new();
-            let mut fling_guard = crate::fling_guard::FlingGuard::new();
+            let mut touch_input = crate::touch_input::TouchInput::new();
             self.window.on_touch(move |touch| {
                 let phase = match touch.action {
                     0 => gpui::TouchPhase::Started,
@@ -1735,8 +1735,8 @@ impl PlatformWindow for AndroidPlatformWindow {
                     force: None,
                 };
                 let mut cb = cb.lock();
-                fling_guard.relay(event, &mut next_touch_id, |event| {
-                    cb(gpui::PlatformInput::Touch(event));
+                touch_input.relay(event, &mut next_touch_id, |event| {
+                    cb(event);
                 });
                 if matches!(phase, gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled) {
                     active_touches.remove(&touch.id);
